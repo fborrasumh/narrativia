@@ -1,0 +1,924 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>NarrativIA · del cuaderno a la sección de Resultados</title>
+<meta name="description" content="Convierte un cuaderno Jupyter/Colab ejecutado en la sección de Resultados de un manuscrito científico, con auditoría de cifras. UMH.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Serif:ital,wght@0,400;0,600;1,400&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/docx/8.5.0/docx.js"></script>
+<style>
+:root{
+  --ink:#12222B; --ink2:#1B3440; --ink3:#27454F;
+  --paper:#FBFAF7; --paper2:#F2EFE8; --paper3:#E8E4DA;
+  --petrol:#0E6E78; --petrol-d:#0A545C; --petrol-l:#D6EAEB;
+  --ochre:#B8722A; --ochre-l:#F7E9D4;
+  --muted:#67787F; --line:#DED9CF; --alert:#A33B2A;
+  --serif:'IBM Plex Serif',Georgia,serif;
+  --sans:'IBM Plex Sans',system-ui,sans-serif;
+  --mono:'IBM Plex Mono',ui-monospace,monospace;
+  --r:3px;
+}
+*{box-sizing:border-box}
+html,body{margin:0;padding:0}
+body{background:var(--paper);color:var(--ink);font-family:var(--sans);font-size:15px;line-height:1.55;-webkit-font-smoothing:antialiased}
+a{color:var(--petrol)}
+button{font-family:inherit}
+::selection{background:var(--petrol-l)}
+
+/* ---------- cabecera ---------- */
+header.top{position:sticky;top:0;z-index:60;background:var(--ink);color:var(--paper);border-bottom:1px solid #000}
+.top-in{max-width:1280px;margin:0 auto;padding:10px 20px;display:flex;align-items:center;gap:18px;flex-wrap:wrap}
+.brand{font-family:var(--serif);font-weight:600;font-size:20px;letter-spacing:-.2px}
+.brand em{font-style:italic;color:var(--ochre);font-weight:400}
+.brand-sub{font-family:var(--mono);font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;color:#8FA6AD;margin-left:2px}
+.top .sp{flex:1}
+.tbtn{background:transparent;border:1px solid #38545F;color:#CFE0E3;padding:6px 12px;border-radius:var(--r);font-size:12.5px;cursor:pointer}
+.tbtn:hover{border-color:var(--petrol);background:#0d2a33}
+.tbtn.on{background:var(--petrol);border-color:var(--petrol);color:#fff}
+
+/* ---------- pasos ---------- */
+.steps{max-width:1280px;margin:0 auto;padding:0 20px;display:flex;gap:0;border-bottom:1px solid var(--line);flex-wrap:wrap}
+.step{display:flex;align-items:baseline;gap:8px;padding:12px 18px 10px 0;margin-right:18px;font-size:13px;color:var(--muted);border-bottom:2px solid transparent;cursor:pointer;background:none;border-top:0;border-left:0;border-right:0}
+.step b{font-family:var(--mono);font-size:11px;color:var(--paper3);background:var(--ink3);padding:2px 6px;border-radius:2px}
+.step.done b{background:var(--petrol);color:#fff}
+.step.act{color:var(--ink);border-bottom-color:var(--ochre);font-weight:600}
+.step.act b{background:var(--ochre);color:#fff}
+
+main{max-width:1280px;margin:0 auto;padding:26px 20px 90px}
+section.blk{margin-bottom:38px;scroll-margin-top:110px}
+h2.sec{font-family:var(--serif);font-size:23px;font-weight:600;margin:0 0 4px;letter-spacing:-.3px}
+p.lead{color:var(--muted);margin:0 0 18px;max-width:70ch;font-size:14px}
+
+/* ---------- zona de carga ---------- */
+.drop{border:1.5px dashed var(--line);background:var(--paper2);border-radius:var(--r);padding:38px 24px;text-align:center;transition:.15s}
+.drop.hot{border-color:var(--petrol);background:var(--petrol-l)}
+.drop h3{font-family:var(--serif);font-size:19px;margin:0 0 6px;font-weight:600}
+.drop p{color:var(--muted);font-size:13.5px;margin:0 0 16px}
+.btn{background:var(--petrol);color:#fff;border:1px solid var(--petrol-d);padding:9px 18px;border-radius:var(--r);font-size:14px;font-weight:500;cursor:pointer}
+.btn:hover{background:var(--petrol-d)}
+.btn:disabled{opacity:.45;cursor:not-allowed}
+.btn.ghost{background:transparent;color:var(--ink);border-color:var(--line)}
+.btn.ghost:hover{background:var(--paper2)}
+.btn.ochre{background:var(--ochre);border-color:#96591d}
+.btn.ochre:hover{background:#96591d}
+.btn.sm{padding:5px 11px;font-size:12.5px}
+
+/* ---------- ficha del cuaderno ---------- */
+.nbcard{display:flex;gap:22px;align-items:center;flex-wrap:wrap;background:var(--ink);color:var(--paper);padding:16px 20px;border-radius:var(--r)}
+.nbcard .name{font-family:var(--mono);font-size:14px;color:#fff}
+.nbcard .meta{font-family:var(--mono);font-size:11.5px;color:#8FA6AD;letter-spacing:.04em}
+.stat{display:flex;flex-direction:column}
+.stat span{font-family:var(--mono);font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:#7E969E}
+.stat b{font-family:var(--serif);font-size:21px;font-weight:600;line-height:1.1}
+
+/* ---------- inventario (elemento firma: interlineal) ---------- */
+.inv{border-top:1px solid var(--line)}
+.art{display:grid;grid-template-columns:74px 1fr;gap:0;border-bottom:1px solid var(--line);position:relative}
+.art.off{opacity:.42}
+.stamp{padding:16px 12px 16px 0;text-align:right;border-right:1px solid var(--line);position:relative}
+.stamp .ex{font-family:var(--mono);font-size:12px;color:var(--petrol);font-weight:500}
+.stamp .kind{font-family:var(--mono);font-size:9.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);display:block;margin-top:4px}
+.stamp input{margin-top:10px}
+.art-body{padding:16px 0 16px 18px;min-width:0}
+.art-head{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:8px}
+.role{font-family:var(--mono);font-size:11px;padding:2px 7px;border-radius:2px;background:var(--paper2);border:1px solid var(--line);color:var(--ink)}
+.role select{border:0;background:transparent;font-family:var(--mono);font-size:11px;color:var(--ink)}
+.note{flex:1;min-width:180px;border:0;border-bottom:1px dotted var(--line);background:transparent;font-size:13px;padding:2px 0;font-family:var(--sans);color:var(--ink)}
+.note:focus{outline:0;border-bottom-color:var(--ochre)}
+.code{font-family:var(--mono);font-size:11.5px;color:#9FB7BD;background:var(--ink);padding:9px 12px;border-radius:2px;white-space:pre-wrap;overflow-x:auto;max-height:110px;margin:0 0 8px}
+.out{font-family:var(--mono);font-size:11.5px;background:var(--paper2);border-left:2px solid var(--ochre);padding:9px 12px;white-space:pre-wrap;overflow-x:auto;max-height:220px;margin:0}
+.out img{max-width:100%;display:block}
+.out table{border-collapse:collapse;font-size:11px}
+.out table td,.out table th{border:1px solid var(--line);padding:2px 6px;text-align:right}
+.out table th{background:var(--paper3);font-weight:600}
+.tools{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:14px 0 20px}
+
+/* ---------- ajustes ---------- */
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(215px,1fr));gap:16px 20px}
+.f label{display:block;font-family:var(--mono);font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);margin-bottom:5px}
+.f select,.f input[type=text],.f input[type=number],.f textarea{width:100%;padding:8px 10px;border:1px solid var(--line);border-radius:var(--r);background:#fff;font-family:var(--sans);font-size:14px;color:var(--ink)}
+.f textarea{min-height:74px;resize:vertical}
+.f select:focus,.f input:focus,.f textarea:focus{outline:0;border-color:var(--petrol)}
+.chk{display:flex;gap:8px;align-items:flex-start;font-size:13.5px;margin-bottom:8px}
+.chk input{margin-top:3px}
+
+/* ---------- manuscrito ---------- */
+.ms{background:#fff;border:1px solid var(--line);border-radius:var(--r);padding:34px 40px;max-width:80ch;box-shadow:0 1px 0 var(--paper3)}
+.ms h3{font-family:var(--serif);font-size:20px;margin:0 0 16px;font-weight:600}
+.ms h4{font-family:var(--sans);font-size:14px;text-transform:none;font-weight:600;margin:22px 0 6px;color:var(--ink2)}
+.ms p{font-family:var(--serif);font-size:15.5px;line-height:1.75;margin:0 0 12px;text-align:justify}
+.ms p:focus{outline:1px dashed var(--ochre);outline-offset:6px}
+.tblbox{margin:22px 0}
+.tblcap{font-family:var(--sans);font-size:13px;margin-bottom:6px}
+.tblcap b{font-weight:600}
+.tblbox table{border-collapse:collapse;width:100%;font-family:var(--mono);font-size:11.5px}
+.tblbox td,.tblbox th{border-top:1px solid var(--ink);border-bottom:1px solid var(--line);padding:4px 8px;text-align:right}
+.tblbox th{border-bottom:1px solid var(--ink);font-weight:600;background:transparent}
+.tblnote{font-size:12px;color:var(--muted);margin-top:5px;font-family:var(--sans)}
+.figbox{margin:22px 0}
+.figbox img{max-width:100%;border:1px solid var(--line)}
+mark.unv{background:var(--ochre-l);border-bottom:1.5px solid var(--ochre);padding:0 1px;cursor:help}
+mark.ok{background:transparent}
+
+.panel{background:var(--paper2);border:1px solid var(--line);border-left:3px solid var(--ochre);padding:14px 16px;border-radius:var(--r);margin-bottom:18px}
+.panel h4{margin:0 0 6px;font-size:13px;font-family:var(--mono);letter-spacing:.1em;text-transform:uppercase;color:var(--ochre)}
+.panel ul{margin:0;padding-left:18px;font-size:13.5px}
+.panel.good{border-left-color:var(--petrol)}
+.panel.good h4{color:var(--petrol)}
+
+.row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+.status{font-family:var(--mono);font-size:12px;color:var(--muted)}
+.spin{display:inline-block;width:11px;height:11px;border:2px solid var(--line);border-top-color:var(--petrol);border-radius:50%;animation:sp .7s linear infinite;vertical-align:-1px;margin-right:6px}
+@keyframes sp{to{transform:rotate(360deg)}}
+
+/* ---------- modal ---------- */
+.mask{position:fixed;inset:0;background:rgba(18,34,43,.55);display:none;align-items:center;justify-content:center;z-index:100;padding:20px}
+.mask.on{display:flex}
+.modal{background:var(--paper);border-radius:var(--r);max-width:620px;width:100%;max-height:86vh;overflow:auto;padding:26px 28px;border:1px solid var(--line)}
+.modal h3{font-family:var(--serif);font-size:20px;margin:0 0 4px;font-weight:600}
+.modal .close{float:right;background:none;border:0;font-size:22px;cursor:pointer;color:var(--muted);line-height:1}
+pre.ev{font-family:var(--mono);font-size:11px;white-space:pre-wrap;background:var(--ink);color:#B7CCD1;padding:14px;border-radius:2px;max-height:52vh;overflow:auto}
+.hint{font-size:12.5px;color:var(--muted);margin-top:6px}
+.pill{display:inline-block;font-family:var(--mono);font-size:10.5px;padding:2px 7px;border:1px solid var(--line);border-radius:99px;color:var(--muted);margin-right:6px}
+
+footer{border-top:1px solid var(--line);padding:22px 20px;text-align:center;font-size:12px;color:var(--muted);font-family:var(--mono)}
+
+@media(max-width:720px){
+  .ms{padding:22px 20px}
+  .art{grid-template-columns:56px 1fr}
+  .top-in{gap:10px}
+  main{padding:20px 14px 70px}
+}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+</style>
+</head>
+<body>
+
+<header class="top">
+  <div class="top-in">
+    <div>
+      <div class="brand">Narrativ<em>IA</em></div>
+      <div class="brand-sub">del cuaderno ejecutado a la sección de resultados</div>
+    </div>
+    <div class="sp"></div>
+    <button class="tbtn" id="btnProj">Proyectos</button>
+    <button class="tbtn" id="btnCfg">Modelo y clave</button>
+  </div>
+</header>
+
+<nav class="steps" id="steps">
+  <button class="step act" data-go="s1"><b>1</b> Cuaderno</button>
+  <button class="step" data-go="s2"><b>2</b> Evidencia</button>
+  <button class="step" data-go="s3"><b>3</b> Estilo</button>
+  <button class="step" data-go="s4"><b>4</b> Resultados</button>
+</nav>
+
+<main>
+
+<!-- 1 -->
+<section class="blk" id="s1">
+  <h2 class="sec">Carga el cuaderno ejecutado</h2>
+  <p class="lead">NarrativIA lee el <code>.ipynb</code> con sus salidas guardadas: tablas de pandas, figuras de matplotlib, resúmenes de statsmodels o scipy. No vuelve a ejecutar nada ni recalcula: solo redacta a partir de lo que el cuaderno ya imprimió.</p>
+
+  <div class="drop" id="drop">
+    <h3>Suelta aquí tu .ipynb</h3>
+    <p>En Colab: Archivo → Descargar → Descargar .ipynb. Guarda el cuaderno con las salidas visibles antes de descargarlo.</p>
+    <button class="btn" id="btnFile">Elegir cuaderno</button>
+    <input type="file" id="file" accept=".ipynb,application/json" hidden>
+  </div>
+
+  <div id="nbInfo" style="display:none;margin-top:18px"></div>
+</section>
+
+<!-- 2 -->
+<section class="blk" id="s2" style="display:none">
+  <h2 class="sec">Elige qué entra en Resultados</h2>
+  <p class="lead">Cada salida lleva su número de ejecución del cuaderno, que es el orden real del análisis. Marca lo que debe aparecer, corrige el papel que juega y añade una nota si el modelo necesita saber algo que el código no dice.</p>
+
+  <div class="tools">
+    <button class="btn ghost sm" id="selAll">Marcar todo</button>
+    <button class="btn ghost sm" id="selNone">Desmarcar todo</button>
+    <button class="btn ghost sm" id="selRel">Solo tablas, figuras y contrastes</button>
+    <span class="status" id="selCount"></span>
+  </div>
+
+  <div class="inv" id="inv"></div>
+
+  <div class="row" style="margin-top:20px">
+    <button class="btn" id="toS3">Continuar al estilo</button>
+  </div>
+</section>
+
+<!-- 3 -->
+<section class="blk" id="s3" style="display:none">
+  <h2 class="sec">Estilo de redacción</h2>
+  <p class="lead">Estas decisiones cambian el texto, no los datos. Las tablas se construyen con los valores exactos del cuaderno; el modelo solo escribe la prosa, los títulos y las leyendas.</p>
+
+  <div class="grid">
+    <div class="f"><label>Idioma del manuscrito</label>
+      <select id="cLang"><option value="es">Español</option><option value="en">Inglés</option><option value="ca">Valenciano / catalán</option></select></div>
+    <div class="f"><label>Norma de estilo</label>
+      <select id="cStyle">
+        <option value="APA7">APA 7ª edición</option>
+        <option value="Vancouver">Vancouver (biomédicas)</option>
+        <option value="AMA">AMA</option>
+        <option value="Elsevier">Genérico Elsevier / Springer</option>
+      </select></div>
+    <div class="f"><label>Revista objetivo (opcional)</label>
+      <input type="text" id="cJournal" placeholder="p. ej. BMC Pregnancy and Childbirth"></div>
+    <div class="f"><label>Extensión</label>
+      <select id="cLen"><option value="compacta">Compacta (~350 palabras)</option><option value="media" selected>Media (~700 palabras)</option><option value="extensa">Extensa (~1200 palabras)</option></select></div>
+    <div class="f"><label>Primera tabla numerada como</label><input type="number" id="cT0" value="1" min="1"></div>
+    <div class="f"><label>Primera figura numerada como</label><input type="number" id="cF0" value="1" min="1"></div>
+  </div>
+
+  <div style="margin-top:20px" class="grid">
+    <div>
+      <div class="chk"><input type="checkbox" id="cMethods" checked><label style="font-family:var(--sans);text-transform:none;letter-spacing:0;font-size:13.5px;color:var(--ink)">Redactar también el párrafo de «Análisis estadístico» para Métodos</label></div>
+      <div class="chk"><input type="checkbox" id="cCI" checked><label style="font-family:var(--sans);text-transform:none;letter-spacing:0;font-size:13.5px;color:var(--ink)">Exigir intervalos de confianza y tamaños del efecto cuando existan en las salidas</label></div>
+      <div class="chk"><input type="checkbox" id="cVision"><label style="font-family:var(--sans);text-transform:none;letter-spacing:0;font-size:13.5px;color:var(--ink)">Enviar las imágenes de las figuras al modelo para redactar sus leyendas (requiere modelo con visión)</label></div>
+    </div>
+    <div class="f"><label>Contexto del estudio</label>
+      <textarea id="cCtx" placeholder="Diseño, población, variable principal, hipótesis. Dos o tres frases bastan y mejoran mucho el resultado."></textarea></div>
+  </div>
+
+  <div class="row" style="margin-top:22px">
+    <button class="btn ochre" id="btnGen">Redactar Resultados</button>
+    <button class="btn ghost" id="btnEv">Ver la evidencia que se envía</button>
+    <span class="status" id="genStat"></span>
+  </div>
+</section>
+
+<!-- 4 -->
+<section class="blk" id="s4" style="display:none">
+  <h2 class="sec">Manuscrito</h2>
+  <p class="lead">Texto editable. Cada cifra se ha contrastado con las salidas del cuaderno: las que no aparecen en ninguna salida quedan subrayadas en ocre para que las revises antes de enviar nada.</p>
+
+  <div id="audit"></div>
+  <div id="gaps"></div>
+
+  <div class="row" style="margin-bottom:16px">
+    <button class="btn" id="expDocx">Descargar .docx</button>
+    <button class="btn ghost" id="expMd">Descargar .md</button>
+    <button class="btn ghost" id="copyTxt">Copiar texto</button>
+    <button class="btn ghost" id="reAudit">Reauditar cifras</button>
+    <button class="btn ghost" id="btnSave">Guardar proyecto</button>
+  </div>
+
+  <div class="ms" id="ms"></div>
+</section>
+
+</main>
+
+<footer>NarrativIA · Fernando Borrás · Universidad Miguel Hernández de Elche · la clave se guarda solo en este navegador</footer>
+
+<!-- modal ajustes -->
+<div class="mask" id="mCfg"><div class="modal">
+  <button class="close" data-x>&times;</button>
+  <h3>Modelo y clave</h3>
+  <p class="hint">La clave se guarda en <code>localStorage</code> de este navegador con el nombre <code>ia_openai_key</code> y no viaja a ningún servidor propio.</p>
+  <div class="grid" style="margin-top:16px">
+    <div class="f"><label>Proveedor</label>
+      <select id="pProv"><option value="openai">OpenAI</option><option value="ollama">Ollama local</option></select></div>
+    <div class="f"><label>Modelo</label><input type="text" id="pModel" placeholder="gpt-4o"></div>
+    <div class="f" style="grid-column:1/-1"><label>Clave API (solo OpenAI)</label><input type="text" id="pKey" placeholder="sk-..."></div>
+    <div class="f" style="grid-column:1/-1"><label>URL base (solo Ollama)</label><input type="text" id="pUrl" placeholder="http://localhost:11434"></div>
+  </div>
+  <div class="row" style="margin-top:18px"><button class="btn" id="pSave">Guardar</button><span class="status" id="pStat"></span></div>
+</div></div>
+
+<!-- modal evidencia -->
+<div class="mask" id="mEv"><div class="modal">
+  <button class="close" data-x>&times;</button>
+  <h3>Evidencia enviada al modelo</h3>
+  <p class="hint">Esto es literalmente lo que ve el modelo. Si un dato no está aquí, no puede aparecer en el texto.</p>
+  <pre class="ev" id="evTxt"></pre>
+</div></div>
+
+<!-- modal proyectos -->
+<div class="mask" id="mProj"><div class="modal">
+  <button class="close" data-x>&times;</button>
+  <h3>Proyectos guardados</h3>
+  <p class="hint">Se guardan en IndexedDB, en este navegador.</p>
+  <div id="projList" style="margin-top:14px"></div>
+</div></div>
+
+<script>
+"use strict";
+/* ============================================================
+   NarrativIA — estado
+============================================================ */
+const S = { nbName:"", nbCells:0, artifacts:[], result:null, evidence:"", srcNums:[], projectId:null };
+
+const $ = s => document.querySelector(s);
+const $$ = s => Array.from(document.querySelectorAll(s));
+const esc = s => String(s==null?"":s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+
+/* ============================================================
+   Preferencias de modelo
+============================================================ */
+const CFG = {
+  get prov(){ return localStorage.getItem("ia_provider") || "openai"; },
+  get model(){ return localStorage.getItem("ia_model") || "gpt-4o"; },
+  get key(){ return localStorage.getItem("ia_openai_key") || ""; },
+  get url(){ return localStorage.getItem("ia_ollama_url") || "http://localhost:11434"; }
+};
+function loadCfgUI(){
+  $("#pProv").value = CFG.prov; $("#pModel").value = CFG.model;
+  $("#pKey").value = CFG.key; $("#pUrl").value = CFG.url;
+}
+$("#pSave").onclick = () => {
+  localStorage.setItem("ia_provider", $("#pProv").value);
+  localStorage.setItem("ia_model", $("#pModel").value.trim() || "gpt-4o");
+  localStorage.setItem("ia_openai_key", $("#pKey").value.trim());
+  localStorage.setItem("ia_ollama_url", $("#pUrl").value.trim() || "http://localhost:11434");
+  $("#pStat").textContent = "Guardado.";
+  setTimeout(()=>{ $("#pStat").textContent=""; $("#mCfg").classList.remove("on"); }, 700);
+};
+$("#btnCfg").onclick = () => { loadCfgUI(); $("#mCfg").classList.add("on"); };
+$$(".mask").forEach(m => {
+  m.addEventListener("click", e => { if(e.target===m) m.classList.remove("on"); });
+  const x = m.querySelector("[data-x]"); if(x) x.onclick = () => m.classList.remove("on");
+});
+document.addEventListener("keydown", e => { if(e.key==="Escape") $$(".mask").forEach(m=>m.classList.remove("on")); });
+
+/* ============================================================
+   Navegación por pasos
+============================================================ */
+function show(id){
+  ["s1","s2","s3","s4"].forEach(s => { const el=$("#"+s); if(el) el.style.display = (s===id)?"":"none"; });
+  $$(".step").forEach(b => b.classList.toggle("act", b.dataset.go===id));
+  window.scrollTo({top:0,behavior:"smooth"});
+}
+$$(".step").forEach(b => b.onclick = () => {
+  const t = b.dataset.go;
+  if(t!=="s1" && !S.artifacts.length){ alert("Carga primero un cuaderno."); return; }
+  if(t==="s4" && !S.result){ alert("Aún no hay Resultados redactados."); return; }
+  show(t);
+});
+function markDone(id){ const b=$$(".step").find(x=>x.dataset.go===id); if(b) b.classList.add("done"); }
+
+/* ============================================================
+   Carga y análisis del .ipynb
+============================================================ */
+const drop = $("#drop");
+$("#btnFile").onclick = () => $("#file").click();
+$("#file").onchange = e => { if(e.target.files[0]) readNb(e.target.files[0]); };
+["dragenter","dragover"].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.add("hot"); }));
+["dragleave","drop"].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.remove("hot"); }));
+drop.addEventListener("drop", e => { const f = e.dataTransfer.files[0]; if(f) readNb(f); });
+
+function joinSrc(s){ return Array.isArray(s) ? s.join("") : (s||""); }
+
+function readNb(file){
+  const fr = new FileReader();
+  fr.onload = () => {
+    let nb;
+    try { nb = JSON.parse(fr.result); }
+    catch(err){ alert("Ese archivo no es un .ipynb válido. Descárgalo desde Colab con Archivo → Descargar → .ipynb."); return; }
+    if(!nb.cells){ alert("El archivo no contiene celdas. ¿Seguro que es un cuaderno?"); return; }
+    S.nbName = file.name;
+    parseNb(nb);
+  };
+  fr.readAsText(file);
+}
+
+function parseNb(nb){
+  const arts = [];
+  let mdBuf = [];
+  let n = 0;
+  (nb.cells||[]).forEach((cell, ci) => {
+    if(cell.cell_type === "markdown"){ mdBuf.push(joinSrc(cell.source).trim()); return; }
+    if(cell.cell_type !== "code") return;
+    const code = joinSrc(cell.source).trim();
+    const exec = cell.execution_count;
+    const ctx = mdBuf.slice(-2).join("\n").slice(0,600);
+    (cell.outputs || []).forEach(out => {
+      const d = out.data || {};
+      let kind=null, text="", html="", png=null;
+
+      if(out.output_type === "stream"){
+        text = joinSrc(out.text).trim(); kind = "texto";
+      } else if(out.output_type === "error"){
+        text = (out.traceback||[]).join("\n").replace(/\u001b\[[0-9;]*m/g,"").trim(); kind = "error";
+      } else {
+        if(d["image/png"]){ png = Array.isArray(d["image/png"]) ? d["image/png"].join("") : d["image/png"]; kind="figura"; }
+        else if(d["text/html"] && /<table/i.test(joinSrc(d["text/html"]))){ html = joinSrc(d["text/html"]); kind="tabla"; }
+        else if(d["text/plain"]){ text = joinSrc(d["text/plain"]).trim(); kind="texto"; }
+      }
+      if(!kind) return;
+      if(kind==="texto" && (!text || text.length<2 || /^<(Figure|matplotlib|Axes)/i.test(text))) return;
+
+      const role = guessRole(kind, text, html, code);
+      arts.push({
+        id: "A" + (++n), cell: ci, exec: (exec==null?"·":exec),
+        kind, code, text, html, png, role,
+        note:"", sel: role!=="descartar", ctx,
+        imgW:0, imgH:0
+      });
+    });
+    mdBuf = [];
+  });
+
+  S.artifacts = arts; S.nbCells = (nb.cells||[]).length; S.result = null;
+  renderNbInfo(); renderInv(); collectSourceNumbers();
+  markDone("s1"); show("s2");
+}
+
+function guessRole(kind, text, html, code){
+  if(kind==="figura") return "figura";
+  if(kind==="tabla") return "tabla";
+  if(kind==="error") return "descartar";
+  const t = (text||"").toLowerCase();
+  if(/p[-\s]?value|pvalue|p =|pvalor|statistic|significan|chi2|ttest|mannwhitney|shapiro|anova|kruskal|wilcoxon/.test(t)) return "contraste";
+  if(/coef|std err|r-squared|odds ratio|logit|ols regression|glm|aic|bic|pseudo r/.test(t)) return "modelo";
+  if(/mean|std|count|median|25%|75%|freq|describe|value_counts/.test(t)) return "descriptivo";
+  if(text && text.split("\n").length>2 && /\d/.test(text)) return "descriptivo";
+  return "auxiliar";
+}
+
+function renderNbInfo(){
+  const c = {};
+  S.artifacts.forEach(a => c[a.kind] = (c[a.kind]||0)+1);
+  $("#nbInfo").style.display = "";
+  $("#nbInfo").innerHTML = `
+    <div class="nbcard">
+      <div>
+        <div class="name">${esc(S.nbName)}</div>
+        <div class="meta">${S.nbCells} celdas · ${S.artifacts.length} salidas recuperadas</div>
+      </div>
+      <div style="flex:1"></div>
+      <div class="stat"><span>Tablas</span><b>${c["tabla"]||0}</b></div>
+      <div class="stat"><span>Figuras</span><b>${c["figura"]||0}</b></div>
+      <div class="stat"><span>Texto</span><b>${c["texto"]||0}</b></div>
+      <div class="stat"><span>Errores</span><b>${c["error"]||0}</b></div>
+    </div>`;
+}
+
+/* ============================================================
+   Inventario
+============================================================ */
+const ROLES = ["descriptivo","contraste","modelo","tabla","figura","auxiliar","descartar"];
+
+function renderInv(){
+  const box = $("#inv");
+  box.innerHTML = S.artifacts.map(a => {
+    let body = "";
+    if(a.png) body = `<div class="out"><img src="data:image/png;base64,${a.png}" alt="Figura del cuaderno" data-img="${a.id}"></div>`;
+    else if(a.html) body = `<div class="out">${sanitizeTable(a.html)}</div>`;
+    else body = `<pre class="out">${esc(clip(a.text, 1600))}</pre>`;
+    return `
+    <div class="art ${a.sel?"":"off"}" data-a="${a.id}">
+      <div class="stamp">
+        <div class="ex">[${a.exec}]</div>
+        <span class="kind">${a.kind}</span>
+        <input type="checkbox" data-sel="${a.id}" ${a.sel?"checked":""} aria-label="Incluir salida ${a.id}">
+      </div>
+      <div class="art-body">
+        <div class="art-head">
+          <span class="role">papel <select data-role="${a.id}">${ROLES.map(r=>`<option ${r===a.role?"selected":""}>${r}</option>`).join("")}</select></span>
+          <input class="note" data-note="${a.id}" value="${esc(a.note)}" placeholder="Nota para el redactor: «este es el modelo principal», «solo la columna ajustada»…">
+        </div>
+        ${a.code ? `<pre class="code">${esc(clip(a.code, 420))}</pre>` : ""}
+        ${body}
+      </div>
+    </div>`;
+  }).join("");
+
+  box.querySelectorAll("[data-sel]").forEach(el => el.onchange = e => {
+    const a = find(e.target.dataset.sel); a.sel = e.target.checked;
+    e.target.closest(".art").classList.toggle("off", !a.sel); count(); collectSourceNumbers();
+  });
+  box.querySelectorAll("[data-role]").forEach(el => el.onchange = e => { find(e.target.dataset.role).role = e.target.value; });
+  box.querySelectorAll("[data-note]").forEach(el => el.oninput = e => { find(e.target.dataset.note).note = e.target.value; });
+  box.querySelectorAll("[data-img]").forEach(img => img.onload = () => {
+    const a = find(img.dataset.img); a.imgW = img.naturalWidth; a.imgH = img.naturalHeight;
+  });
+  count();
+}
+const find = id => S.artifacts.find(x => x.id===id);
+const clip = (s,n) => (s && s.length>n) ? s.slice(0,n) + "\n… [salida recortada]" : (s||"");
+function count(){
+  const n = S.artifacts.filter(a=>a.sel).length;
+  $("#selCount").textContent = `${n} de ${S.artifacts.length} salidas marcadas`;
+}
+$("#selAll").onclick = () => { S.artifacts.forEach(a=>a.sel=true); renderInv(); collectSourceNumbers(); };
+$("#selNone").onclick = () => { S.artifacts.forEach(a=>a.sel=false); renderInv(); collectSourceNumbers(); };
+$("#selRel").onclick = () => { S.artifacts.forEach(a => a.sel = ["tabla","figura","contraste","modelo","descriptivo"].includes(a.role)); renderInv(); collectSourceNumbers(); };
+$("#toS3").onclick = () => {
+  if(!S.artifacts.some(a=>a.sel)){ alert("Marca al menos una salida."); return; }
+  markDone("s2"); show("s3");
+};
+
+function sanitizeTable(html){
+  const doc = new DOMParser().parseFromString(html, "text/html");
+  doc.querySelectorAll("style,script").forEach(n=>n.remove());
+  doc.querySelectorAll("*").forEach(n => { n.removeAttribute("style"); n.removeAttribute("class"); n.removeAttribute("id"); });
+  const t = doc.querySelector("table");
+  return t ? t.outerHTML : esc(html.slice(0,800));
+}
+function tableToRows(html){
+  const doc = new DOMParser().parseFromString(html, "text/html");
+  return Array.from(doc.querySelectorAll("tr")).map(tr =>
+    Array.from(tr.querySelectorAll("th,td")).map(td => td.textContent.trim())
+  ).filter(r => r.length);
+}
+function tableToText(html){
+  return tableToRows(html).map(r => r.join("\t")).join("\n");
+}
+
+/* ============================================================
+   Auditoría de cifras
+============================================================ */
+const NUMRE = /-?\d{1,3}(?:,\d{3})+(?:\.\d+)?|-?\d+(?:[.,]\d+)?(?:[eE][-+]?\d+)?/g;
+const SAFE = new Set([0.05,0.01,0.001,0.1,90,95,99,100,0,1,2]);
+
+function toNum(str){
+  let s = String(str).replace(/\s/g,"");
+  // separador de miles solo si el primer grupo no empieza por cero: 1,234 sí; 0,345 es decimal español
+  if(/^-?[1-9]\d{0,2}(,\d{3})+(\.\d+)?$/.test(s)) s = s.replace(/,/g,"");
+  else s = s.replace(",", ".");
+  const v = parseFloat(s);
+  return isFinite(v) ? v : null;
+}
+function numsIn(str){
+  const out = [];
+  (String(str||"").match(NUMRE) || []).forEach(m => { const v = toNum(m); if(v!==null) out.push(v); });
+  return out;
+}
+function collectSourceNumbers(){
+  const set = [];
+  S.artifacts.filter(a=>a.sel).forEach(a => {
+    const t = (a.text||"") + "\n" + (a.html ? tableToText(a.html) : "") + "\n" + (a.code||"");
+    numsIn(t).forEach(v => set.push(v));
+  });
+  S.srcNums = set;
+}
+function decimals(str){
+  const m = String(str).match(/[.,](\d+)/);
+  return m ? m[1].length : 0;
+}
+/** ¿La cifra del texto es un redondeo legítimo de alguna cifra de las salidas? */
+function verified(raw){
+  const v = toNum(raw); if(v===null) return true;
+  if(SAFE.has(Math.abs(v))) return true;
+  if(/^(19|20)\d\d$/.test(String(raw).replace(/\D/g,"")) && Number.isInteger(v)) return true;
+  const d = decimals(raw);
+  const tol = 0.5 * Math.pow(10, -d) + 1e-9;
+  for(const s of S.srcNums){
+    if(Math.abs(s - v) <= tol) return true;
+    if(Math.abs(s*100 - v) <= tol) return true;     // proporción del cuaderno escrita como porcentaje
+  }
+  return false;
+}
+function auditHtml(text){
+  let out = "", last = 0, bad = 0;
+  const src = String(text||"");
+  src.replace(NUMRE, (m, off) => {
+    const before = src.slice(Math.max(0,off-14), off);
+    out += esc(src.slice(last, off));
+    if(/(Tabla|Table|Figura|Figure|Fig\.?)\s*$/i.test(before)){ out += esc(m); }
+    else if(verified(m)){ out += esc(m); }
+    else { out += `<mark class="unv" title="Esta cifra no aparece en ninguna salida marcada del cuaderno">${esc(m)}</mark>`; bad++; }
+    last = off + m.length;
+    return m;
+  });
+  out += esc(src.slice(last));
+  return { html: out, bad };
+}
+
+/* ============================================================
+   Construcción de la evidencia y llamada al modelo
+============================================================ */
+function buildEvidence(){
+  const sel = S.artifacts.filter(a=>a.sel);
+  let ev = "";
+  sel.forEach(a => {
+    ev += `\n===== SALIDA ${a.id} | ejecución [${a.exec}] | papel: ${a.role}\n`;
+    if(a.ctx) ev += `--- texto del cuaderno antes de la celda ---\n${clip(a.ctx,400)}\n`;
+    if(a.note) ev += `--- nota del investigador ---\n${a.note}\n`;
+    if(a.code) ev += `--- código ---\n${clip(a.code,900)}\n`;
+    if(a.html) ev += `--- tabla (tabulada) ---\n${clip(tableToText(a.html), 3000)}\n`;
+    else if(a.text) ev += `--- salida ---\n${clip(a.text, 3000)}\n`;
+    else if(a.png) ev += `--- salida ---\n[imagen PNG${$("#cVision").checked ? ", adjunta al mensaje" : ", no enviada"}]\n`;
+  });
+  S.evidence = ev.trim();
+  return S.evidence;
+}
+$("#btnEv").onclick = () => { $("#evTxt").textContent = buildEvidence() || "(nada marcado)"; $("#mEv").classList.add("on"); };
+
+function cfgObj(){
+  return {
+    lang: $("#cLang").value, style: $("#cStyle").value, journal: $("#cJournal").value.trim(),
+    len: $("#cLen").value, t0: parseInt($("#cT0").value)||1, f0: parseInt($("#cF0").value)||1,
+    methods: $("#cMethods").checked, ci: $("#cCI").checked, vision: $("#cVision").checked,
+    ctx: $("#cCtx").value.trim()
+  };
+}
+
+function systemPrompt(c){
+  const L = {es:"español",en:"inglés académico",ca:"valenciano"}[c.lang];
+  return `Eres redactor científico y bioestadístico. Escribes la sección de RESULTADOS de un artículo a partir de las salidas de un cuaderno de análisis ya ejecutado.
+
+REGLAS INNEGOCIABLES
+1. Solo puedes escribir cifras que aparezcan literalmente en la EVIDENCIA. No calcules, no estimes, no completes, no redondees hacia valores "más bonitos". Redondear a menos decimales sí está permitido.
+2. Si falta un estadístico que la norma exige (IC, tamaño del efecto, n por grupo, gl), NO lo inventes: anótalo en "vacios".
+3. No interpretes ni discutas los hallazgos. Nada de "lo que sugiere", "esto indica que", "es clínicamente relevante". Eso pertenece a Discusión.
+4. No copies el contenido numérico de las tablas dentro de la prosa fila por fila. La prosa destaca lo esencial y remite a la tabla.
+5. Escribe en pasado, voz activa cuando sea natural, tercera persona.
+
+FORMATO
+- Idioma: ${L}. Norma: ${c.style}. ${c.journal?`Revista objetivo: ${c.journal}.`:""}
+- Valores p exactos con tres decimales (p = .034); si es menor, p < .001.
+${c.ci?"- Incluye IC del 95 % y tamaños del efecto SIEMPRE que consten en la evidencia.":""}
+- Menciona cada tabla y cada figura en el texto al menos una vez (Tabla 1, Figura 1…).
+- Extensión ${c.len}.
+
+Devuelve EXCLUSIVAMENTE un objeto JSON, sin markdown ni comentarios, con esta forma:
+{
+ "bloques":[{"encabezado":"...","parrafos":["...","..."]}],
+ "tablas":[{"id":"A3","numero":1,"titulo":"...","nota":"..."}],
+ "figuras":[{"id":"A5","numero":1,"leyenda":"..."}],
+ "metodos_estadisticos":"${c.methods?"párrafo de Análisis estadístico":""}",
+ "vacios":["..."]
+}
+Los "id" deben ser exactamente los identificadores de SALIDA que recibes. Numera tablas desde ${c.t0} y figuras desde ${c.f0}, en el orden en que las mencionas.`;
+}
+
+async function callModel(messages){
+  const prov = CFG.prov;
+  if(prov === "openai"){
+    if(!CFG.key) throw new Error("Falta la clave de OpenAI. Ábrela en «Modelo y clave».");
+    const r = await fetch("https://api.openai.com/v1/chat/completions", {
+      method:"POST",
+      headers:{ "Content-Type":"application/json", "Authorization":"Bearer "+CFG.key },
+      body: JSON.stringify({ model: CFG.model, messages, temperature:0.2, response_format:{type:"json_object"} })
+    });
+    if(!r.ok){ const t = await r.text(); throw new Error("OpenAI respondió "+r.status+": "+t.slice(0,300)); }
+    const d = await r.json();
+    return d.choices[0].message.content;
+  } else {
+    const flat = messages.map(m => ({
+      role: m.role,
+      content: Array.isArray(m.content) ? m.content.filter(p=>p.type==="text").map(p=>p.text).join("\n") : m.content
+    }));
+    const r = await fetch(CFG.url.replace(/\/$/,"") + "/api/chat", {
+      method:"POST", headers:{"Content-Type":"application/json"},
+      body: JSON.stringify({ model: CFG.model, messages: flat, stream:false, format:"json", options:{temperature:0.2} })
+    });
+    if(!r.ok) throw new Error("Ollama respondió " + r.status + ". ¿Está corriendo en " + CFG.url + "?");
+    const d = await r.json();
+    return d.message.content;
+  }
+}
+
+$("#btnGen").onclick = async () => {
+  const sel = S.artifacts.filter(a=>a.sel);
+  if(!sel.length){ alert("No hay salidas marcadas."); return; }
+  const c = cfgObj();
+  const ev = buildEvidence();
+  collectSourceNumbers();
+
+  const user = [];
+  let head = `CONTEXTO DEL ESTUDIO\n${c.ctx || "(no aportado)"}\n\nEVIDENCIA (salidas del cuaderno «${S.nbName}»)\n${ev}`;
+  user.push({type:"text", text: head});
+  if(c.vision){
+    sel.filter(a=>a.png).slice(0,6).forEach(a => {
+      user.push({type:"text", text:`Imagen de la SALIDA ${a.id}:`});
+      user.push({type:"image_url", image_url:{url:"data:image/png;base64,"+a.png, detail:"low"}});
+    });
+  }
+
+  const btn = $("#btnGen"); btn.disabled = true;
+  $("#genStat").innerHTML = '<span class="spin"></span>Redactando…';
+  try{
+    const raw = await callModel([
+      {role:"system", content: systemPrompt(c)},
+      {role:"user", content: c.vision ? user : head}
+    ]);
+    const clean = raw.replace(/^```(?:json)?/i,"").replace(/```$/,"").trim();
+    S.result = JSON.parse(clean);
+    S.result._cfg = c;
+    renderMs();
+    markDone("s3"); show("s4");
+    $("#genStat").textContent = "";
+  }catch(err){
+    $("#genStat").textContent = "";
+    alert("No se pudo redactar: " + err.message);
+  }finally{ btn.disabled = false; }
+};
+
+/* ============================================================
+   Manuscrito
+============================================================ */
+function renderMs(){
+  const R = S.result, c = R._cfg;
+  let h = "";
+  let totalBad = 0;
+
+  if(c.methods && R.metodos_estadisticos){
+    const a = auditHtml(R.metodos_estadisticos); totalBad += a.bad;
+    h += `<h3>Análisis estadístico <span class="pill">para Métodos</span></h3><p contenteditable="true" data-p="m0">${a.html}</p>`;
+  }
+
+  h += `<h3>${c.lang==="en"?"Results":"Resultados"}</h3>`;
+  (R.bloques||[]).forEach((b, bi) => {
+    if(b.encabezado) h += `<h4>${esc(b.encabezado)}</h4>`;
+    (b.parrafos||[]).forEach((p, pi) => {
+      const a = auditHtml(p); totalBad += a.bad;
+      h += `<p contenteditable="true" data-p="${bi}.${pi}">${a.html}</p>`;
+    });
+  });
+
+  (R.tablas||[]).forEach(t => {
+    const art = find(t.id); if(!art) return;
+    const inner = art.html ? sanitizeTable(art.html) : `<pre style="font-family:var(--mono);font-size:11.5px">${esc(art.text)}</pre>`;
+    h += `<div class="tblbox">
+      <div class="tblcap"><b>Tabla ${t.numero}.</b> ${esc(t.titulo||"")}</div>
+      ${inner}
+      ${t.nota?`<div class="tblnote">Nota. ${esc(t.nota)}</div>`:""}
+    </div>`;
+  });
+
+  (R.figuras||[]).forEach(f => {
+    const art = find(f.id); if(!art || !art.png) return;
+    h += `<div class="figbox">
+      <img src="data:image/png;base64,${art.png}" alt="Figura ${f.numero}">
+      <div class="tblcap" style="margin-top:6px"><b>Figura ${f.numero}.</b> ${esc(f.leyenda||"")}</div>
+    </div>`;
+  });
+
+  $("#ms").innerHTML = h;
+  $$("#ms p[contenteditable]").forEach(p => p.addEventListener("blur", syncEdits));
+
+  renderAudit(totalBad);
+  renderGaps();
+}
+
+function renderAudit(bad){
+  $("#audit").innerHTML = bad
+    ? `<div class="panel"><h4>${bad} cifra${bad>1?"s":""} sin respaldo</h4><p style="margin:0;font-size:13.5px">Estas cifras no coinciden con ninguna salida marcada del cuaderno. Puede que el modelo las haya inventado, o que procedan de una salida que no marcaste. Revísalas una a una antes de dar el texto por bueno.</p></div>`
+    : `<div class="panel good"><h4>Cifras verificadas</h4><p style="margin:0;font-size:13.5px">Todas las cifras del texto se corresponden con alguna salida del cuaderno. Esto no valida el análisis, solo la transcripción.</p></div>`;
+}
+function renderGaps(){
+  const g = (S.result.vacios||[]).filter(Boolean);
+  $("#gaps").innerHTML = g.length
+    ? `<div class="panel"><h4>Lo que falta en el cuaderno</h4><ul>${g.map(x=>`<li>${esc(x)}</li>`).join("")}</ul></div>` : "";
+}
+function syncEdits(){
+  const R = S.result;
+  $$("#ms p[contenteditable]").forEach(p => {
+    const k = p.dataset.p, txt = p.innerText;
+    if(k === "m0"){ R.metodos_estadisticos = txt; return; }
+    const [bi,pi] = k.split(".").map(Number);
+    if(R.bloques[bi] && R.bloques[bi].parrafos) R.bloques[bi].parrafos[pi] = txt;
+  });
+}
+$("#reAudit").onclick = () => { syncEdits(); collectSourceNumbers(); renderMs(); };
+
+/* ============================================================
+   Exportación
+============================================================ */
+function plainText(){
+  const R = S.result, c = R._cfg; let t = "";
+  if(c.methods && R.metodos_estadisticos) t += "ANÁLISIS ESTADÍSTICO\n\n" + R.metodos_estadisticos + "\n\n";
+  t += (c.lang==="en"?"RESULTS":"RESULTADOS") + "\n\n";
+  (R.bloques||[]).forEach(b => {
+    if(b.encabezado) t += b.encabezado + "\n\n";
+    (b.parrafos||[]).forEach(p => t += p + "\n\n");
+  });
+  (R.tablas||[]).forEach(x => {
+    const art = find(x.id);
+    t += `Tabla ${x.numero}. ${x.titulo||""}\n`;
+    if(art) t += (art.html ? tableToText(art.html) : art.text) + "\n";
+    if(x.nota) t += `Nota. ${x.nota}\n`;
+    t += "\n";
+  });
+  (R.figuras||[]).forEach(x => t += `Figura ${x.numero}. ${x.leyenda||""}\n\n`);
+  return t;
+}
+function dl(blob, name){
+  const u = URL.createObjectURL(blob), a = document.createElement("a");
+  a.href = u; a.download = name; a.click(); setTimeout(()=>URL.revokeObjectURL(u), 3000);
+}
+$("#copyTxt").onclick = () => { syncEdits(); navigator.clipboard.writeText(plainText()); $("#copyTxt").textContent = "Copiado"; setTimeout(()=>$("#copyTxt").textContent="Copiar texto",1200); };
+$("#expMd").onclick = () => {
+  syncEdits(); const R = S.result; let m = "# Resultados\n\n";
+  if(R._cfg.methods && R.metodos_estadisticos) m = "## Análisis estadístico\n\n" + R.metodos_estadisticos + "\n\n# Resultados\n\n";
+  (R.bloques||[]).forEach(b => { if(b.encabezado) m += `## ${b.encabezado}\n\n`; (b.parrafos||[]).forEach(p => m += p + "\n\n"); });
+  (R.tablas||[]).forEach(x => {
+    const art = find(x.id); m += `**Tabla ${x.numero}.** ${x.titulo||""}\n\n`;
+    if(art && art.html){ const rows = tableToRows(art.html);
+      if(rows.length){ m += "| " + rows[0].join(" | ") + " |\n| " + rows[0].map(()=>"---").join(" | ") + " |\n";
+        rows.slice(1).forEach(r => m += "| " + r.join(" | ") + " |\n"); m += "\n"; }
+    } else if(art){ m += "```\n" + art.text + "\n```\n\n"; }
+    if(x.nota) m += `*Nota. ${x.nota}*\n\n`;
+  });
+  (R.figuras||[]).forEach(x => m += `**Figura ${x.numero}.** ${x.leyenda||""}\n\n`);
+  dl(new Blob([m], {type:"text/markdown"}), baseName()+"_resultados.md");
+};
+const baseName = () => (S.nbName||"cuaderno").replace(/\.ipynb$/i,"");
+
+function b64ToBytes(b64){
+  const bin = atob(b64), arr = new Uint8Array(bin.length);
+  for(let i=0;i<bin.length;i++) arr[i] = bin.charCodeAt(i);
+  return arr;
+}
+$("#expDocx").onclick = async () => {
+  syncEdits();
+  const R = S.result, c = R._cfg;
+  const D = window.docx;
+  const kids = [];
+  const P = (text, opt={}) => new D.Paragraph({ children:[new D.TextRun({text, font:"Times New Roman", size:24, ...opt.run})], spacing:{after:180, line:360}, alignment: opt.align||D.AlignmentType.JUSTIFIED });
+  const H = (text, lvl) => new D.Paragraph({ text, heading: lvl, spacing:{before:280, after:140} });
+
+  if(c.methods && R.metodos_estadisticos){ kids.push(H("Análisis estadístico", D.HeadingLevel.HEADING_1)); kids.push(P(R.metodos_estadisticos)); }
+  kids.push(H(c.lang==="en"?"Results":"Resultados", D.HeadingLevel.HEADING_1));
+  (R.bloques||[]).forEach(b => {
+    if(b.encabezado) kids.push(H(b.encabezado, D.HeadingLevel.HEADING_2));
+    (b.parrafos||[]).forEach(p => kids.push(P(p)));
+  });
+
+  (R.tablas||[]).forEach(x => {
+    const art = find(x.id); if(!art) return;
+    kids.push(new D.Paragraph({ children:[ new D.TextRun({text:`Tabla ${x.numero}. `, bold:true, font:"Times New Roman", size:22}), new D.TextRun({text:x.titulo||"", font:"Times New Roman", size:22}) ], spacing:{before:260, after:100} }));
+    const rows = art.html ? tableToRows(art.html) : art.text.split("\n").map(l => l.split(/\s{2,}|\t/));
+    if(rows.length){
+      const width = Math.max(...rows.map(r=>r.length));
+      kids.push(new D.Table({
+        width:{size:100, type:D.WidthType.PERCENTAGE},
+        rows: rows.map((r,i) => new D.TableRow({ children: Array.from({length:width}, (_,j) =>
+          new D.TableCell({ children:[ new D.Paragraph({ children:[new D.TextRun({text:String(r[j]||""), bold:i===0, font:"Times New Roman", size:20})] }) ] })
+        )}))
+      }));
+    }
+    if(x.nota) kids.push(P("Nota. " + x.nota, {run:{italics:true, size:20}}));
+  });
+
+  (R.figuras||[]).forEach(x => {
+    const art = find(x.id); if(!art || !art.png) return;
+    const maxW = 480, ratio = art.imgH && art.imgW ? art.imgH/art.imgW : 0.62;
+    const w = Math.min(maxW, art.imgW || maxW), hh = Math.round(w*ratio);
+    try{
+      kids.push(new D.Paragraph({ children:[ new D.ImageRun({ data: b64ToBytes(art.png), transformation:{width:w, height:hh} }) ], spacing:{before:260, after:80} }));
+    }catch(e){}
+    kids.push(new D.Paragraph({ children:[ new D.TextRun({text:`Figura ${x.numero}. `, bold:true, font:"Times New Roman", size:22}), new D.TextRun({text:x.leyenda||"", font:"Times New Roman", size:22}) ], spacing:{after:200} }));
+  });
+
+  const doc = new D.Document({ sections:[{ properties:{}, children:kids }] });
+  const blob = await D.Packer.toBlob(doc);
+  dl(blob, baseName()+"_resultados.docx");
+};
+
+/* ============================================================
+   IndexedDB
+============================================================ */
+let DB = null;
+function db(){
+  return new Promise((res, rej) => {
+    if(DB) return res(DB);
+    const r = indexedDB.open("narrativia", 1);
+    r.onupgradeneeded = () => { if(!r.result.objectStoreNames.contains("proyectos")) r.result.createObjectStore("proyectos", {keyPath:"id"}); };
+    r.onsuccess = () => { DB = r.result; res(DB); };
+    r.onerror = () => rej(r.error);
+  });
+}
+async function tx(mode, fn){ const d = await db(); return new Promise((res, rej) => { const t = d.transaction("proyectos", mode); const s = t.objectStore("proyectos"); const q = fn(s); q.onsuccess = () => res(q.result); q.onerror = () => rej(q.error); }); }
+
+$("#btnSave").onclick = async () => {
+  syncEdits();
+  const id = S.projectId || ("p" + Date.now());
+  S.projectId = id;
+  const light = S.artifacts.map(a => ({...a, png: a.png ? a.png.slice(0,400000) : null}));
+  await tx("readwrite", s => s.put({ id, nbName:S.nbName, fecha:new Date().toISOString(), artifacts:light, result:S.result }));
+  $("#btnSave").textContent = "Guardado"; setTimeout(()=>$("#btnSave").textContent="Guardar proyecto", 1400);
+};
+$("#btnProj").onclick = async () => {
+  const all = await tx("readonly", s => s.getAll());
+  $("#projList").innerHTML = all.length ? all.sort((a,b)=>b.fecha.localeCompare(a.fecha)).map(p => `
+    <div style="display:flex;gap:12px;align-items:center;padding:10px 0;border-bottom:1px solid var(--line)">
+      <div style="flex:1"><div style="font-family:var(--mono);font-size:13px">${esc(p.nbName)}</div>
+      <div class="hint">${new Date(p.fecha).toLocaleString("es-ES")} · ${p.artifacts.length} salidas</div></div>
+      <button class="btn sm" data-open="${p.id}">Abrir</button>
+      <button class="btn ghost sm" data-del="${p.id}">Borrar</button>
+    </div>`).join("") : `<p class="hint">Todavía no hay nada guardado. Redacta unos Resultados y pulsa «Guardar proyecto».</p>`;
+  $("#projList").querySelectorAll("[data-open]").forEach(b => b.onclick = async () => {
+    const p = await tx("readonly", s => s.get(b.dataset.open));
+    S.projectId = p.id; S.nbName = p.nbName; S.artifacts = p.artifacts; S.result = p.result;
+    renderNbInfo(); renderInv(); collectSourceNumbers();
+    $("#mProj").classList.remove("on");
+    if(S.result){ renderMs(); show("s4"); } else show("s2");
+  });
+  $("#projList").querySelectorAll("[data-del]").forEach(b => b.onclick = async () => {
+    await tx("readwrite", s => s.delete(b.dataset.del)); $("#btnProj").click();
+  });
+  $("#mProj").classList.add("on");
+};
+
+loadCfgUI();
+</script>
+</body>
+</html>
