@@ -8,7 +8,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Serif:ital,wght@0,400;0,600;1,400&display=swap" rel="stylesheet">
-<script src="https://cdnjs.cloudflare.com/ajax/libs/docx/8.5.0/docx.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/docx@8.5.0/build/index.umd.js"></script>
 <style>
 :root{
   --ink:#12222B; --ink2:#1B3440; --ink3:#27454F;
@@ -802,7 +802,30 @@ function plainText(){
 }
 function dl(blob, name){
   const u = URL.createObjectURL(blob), a = document.createElement("a");
-  a.href = u; a.download = name; a.click(); setTimeout(()=>URL.revokeObjectURL(u), 3000);
+  a.href = u; a.download = name; a.rel = "noopener";
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(()=>URL.revokeObjectURL(u), 3000);
+}
+
+/* Carga perezosa de docx con CDN de reserva y copia local opcional en ./vendor/ */
+const DOCX_SOURCES = [
+  "https://cdn.jsdelivr.net/npm/docx@8.5.0/build/index.umd.js",
+  "https://unpkg.com/docx@8.5.0/build/index.umd.js",
+  "./vendor/docx.umd.js"
+];
+function loadScript(src){
+  return new Promise((res, rej) => {
+    const t = document.createElement("script");
+    t.src = src; t.onload = () => res(); t.onerror = () => rej(new Error(src));
+    document.head.appendChild(t);
+  });
+}
+async function ensureDocx(){
+  if(window.docx) return window.docx;
+  for(const src of DOCX_SOURCES){
+    try{ await loadScript(src); if(window.docx) return window.docx; }catch(e){}
+  }
+  throw new Error("No se ha podido cargar la librería docx.");
 }
 $("#copyTxt").onclick = () => { syncEdits(); navigator.clipboard.writeText(plainText()); $("#copyTxt").textContent = "Copiado"; setTimeout(()=>$("#copyTxt").textContent="Copiar texto",1200); };
 $("#expMd").onclick = () => {
@@ -828,9 +851,21 @@ function b64ToBytes(b64){
   return arr;
 }
 $("#expDocx").onclick = async () => {
+  const btn = $("#expDocx");
+  if(!S.result){ alert("Todavía no hay manuscrito que exportar."); return; }
   syncEdits();
-  const R = S.result, c = R._cfg;
-  const D = window.docx;
+  const R = S.result, c = R._cfg || {};
+  let D;
+  const label = btn.textContent;
+  btn.disabled = true; btn.textContent = "Generando…";
+  try{
+    D = await ensureDocx();
+  }catch(err){
+    btn.disabled = false; btn.textContent = label;
+    alert("No se ha podido cargar la librería que genera el .docx (sin conexión o CDN bloqueado).\n\nPuedes descargar el manuscrito en Markdown mientras tanto.");
+    return;
+  }
+  try{
   const kids = [];
   const P = (text, opt={}) => new D.Paragraph({ children:[new D.TextRun({text, font:"Times New Roman", size:24, ...opt.run})], spacing:{after:180, line:360}, alignment: opt.align||D.AlignmentType.JUSTIFIED });
   const H = (text, lvl) => new D.Paragraph({ text, heading: lvl, spacing:{before:280, after:140} });
@@ -871,6 +906,12 @@ $("#expDocx").onclick = async () => {
   const doc = new D.Document({ sections:[{ properties:{}, children:kids }] });
   const blob = await D.Packer.toBlob(doc);
   dl(blob, baseName()+"_resultados.docx");
+  }catch(err){
+    console.error(err);
+    alert("Ha fallado la generación del .docx: " + (err && err.message ? err.message : err));
+  }finally{
+    btn.disabled = false; btn.textContent = label;
+  }
 };
 
 /* ============================================================
