@@ -6,25 +6,29 @@
 
 Convierte las salidas de un **cuaderno Jupyter ejecutado** en la **sección de Resultados** de un artículo. Cada frase queda enlazada con los hallazgos que la respaldan, así que se puede comprobar no solo que una cifra existe, sino que pertenece al resultado del que habla. Aplicación de un solo fichero, sin servidor.
 
-## Novedades de la versión 2.0
+## Novedades de la versión 3.0
 
-- Interfaz guiada con el estilo de Forja y un cuaderno de ejemplo real, ejecutado con Python.
-- **Ficha de hallazgos**: un agente extrae prueba, grupos, estadístico, p, IC, tamaño del efecto y n. Cada valor se busca en su salida original y lo que no aparece queda marcado como «NO USAR».
-- **Redacción frase a frase con citas** a los hallazgos.
-- **Verificador de cifras sin IA**: clasifica cada número como respaldado, atribuido a otro resultado o sin respaldo. Además marca «tendencia a la significación», «p = 0,000», el lenguaje interpretativo, la causalidad en diseños observacionales, tablas o figuras sin citar y hallazgos principales omitidos.
-- **Revisor conceptual y corrector**: detectan la ausencia de evidencia tratada como ausencia de efecto, la dirección invertida y la confusión entre resultados ajustados y sin ajustar. Solo se reescriben las frases señaladas, y todo se verifica de nuevo.
-- **Integración con CuadernIA 2.0**: lee el diseño, el α y la verificación del cuaderno.
-- **Corregido**: los valores p en formato APA («p = .034») ya no se marcan como cifras sin respaldo.
+- **Interfaz en español, inglés y portugués**, con selector. El texto del manuscrito tiene su propio idioma (español, inglés, valenciano/catalán o portugués), con sus etiquetas de tabla y figura.
+- **Proveedores de IA en la nube con tu propia clave:** OpenAI, Google Gemini y Anthropic Claude, con desplegable de los modelos de tu clave. **Se elimina la opción local con Ollama.**
+- **Ejemplo sin clave:** el cuaderno de dietas funciona en los tres idiomas con una respuesta de IA precalculada que pasa por las mismas comprobaciones (incluye a propósito tres fallos que se detectan y se corrigen). Las versiones en inglés y portugués traducen solo las etiquetas; la figura conserva sus etiquetas en español.
+- **Aviso previo al envío** con muestra de lo que sale y datos personales (correos, DNI, teléfonos) enmascarados. Las figuras no se pueden enmascarar y se avisa.
+- **Word sin librerías externas** (también con la figura incrustada), además de Markdown, texto e informe de revisión.
+- **Verificador de cifras mejorado:** ya no marca plazos como «a los 6 meses» y entiende la coma decimal («1,575»). Reconoce «tendencia a la significación», interpretación y lenguaje causal también en inglés y portugués.
+- Los proyectos guardados con la v2.0 siguen disponibles.
 
-## Privacidad
+## Cómo funciona
 
-El cuaderno se lee en el navegador; al modelo solo se envían las salidas que marques. Funciona con OpenAI (clave en `localStorage`, `ia_openai_key`) o con un modelo local mediante Ollama. Los proyectos se guardan en IndexedDB.
+Analista de evidencia (IA) → contraste de la ficha con las salidas (código) → redactor (IA) → verificador de cifras (código) → revisor conceptual (IA) → corrector (IA) → verificación final (código).
+
+## Privacidad y límites
+
+El cuaderno se lee en el navegador; al proveedor solo se envían las salidas que marques, con los datos personales enmascarados y tras un aviso previo. La clave se guarda solo en tu navegador y los proyectos en IndexedDB. La verificación automática reduce errores, no los elimina: no sabe si el análisis estadístico del cuaderno era el adecuado. Revisa el texto antes de enviarlo. Probada con IA simulada; no se ha probado con claves reales de cada proveedor.
 
 ## Cómo citar
 
-Borrás Rocher, F. (2026). *NarrativIA* (versión 2.0.0) [Software]. Universidad Miguel Hernández de Elche. https://doi.org/10.5281/zenodo.21949740
+Borrás Rocher, F. (2026). *NarrativIA* (versión 3.0.0) [Software]. Universidad Miguel Hernández de Elche. https://doi.org/10.5281/zenodo.21949740
 
-El DOI anterior es el de concepto: apunta siempre a la última versión. El DOI de cada versión concreta está en [Zenodo](https://doi.org/10.5281/zenodo.21949740). GitHub ofrece la cita en formato APA y BibTeX con el botón *Cite this repository*, a partir de `CITATION.cff`.
+El DOI es el de concepto: apunta siempre a la última versión. GitHub ofrece la cita con el botón *Cite this repository*, a partir de `CITATION.cff`.
 
 Forma parte del catálogo [Herramientas IA para la academia](https://fborrasumh.github.io/ia/).
 
